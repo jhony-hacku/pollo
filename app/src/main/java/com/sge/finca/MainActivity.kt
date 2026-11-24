@@ -56,6 +56,7 @@ class MainActivity : FragmentActivity() {
             NotificationDestinations.ALERT ->
                 intent.getStringExtra(NotificationDestinations.EXTRA_ALERT_ID)
                     ?.let(Screen.AlertDetail::createRoute)
+            NotificationDestinations.FARM_MAP -> Screen.FarmMap.route
             NotificationDestinations.CHAT ->
                 intent.getStringExtra(NotificationDestinations.EXTRA_CHAT_WORKER_UID)
                     ?.let(Screen.Chat::createRoute)

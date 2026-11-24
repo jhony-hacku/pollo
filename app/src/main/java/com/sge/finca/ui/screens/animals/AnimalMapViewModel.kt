@@ -2,6 +2,7 @@ package com.sge.finca.ui.screens.animals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sge.finca.data.ranch.RanchExitMonitor
 import com.sge.finca.domain.usecase.ObserveTrackedAnimalsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AnimalMapViewModel @Inject constructor(
     private val observeTrackedAnimals: ObserveTrackedAnimalsUseCase,
+    private val ranchExitMonitor: RanchExitMonitor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnimalMapUiState())
@@ -28,6 +30,12 @@ class AnimalMapViewModel @Inject constructor(
         viewModelScope.launch {
             observeTrackedAnimals().collect { animals ->
                 _uiState.update { it.copy(animals = animals) }
+            }
+        }
+        // Límite del rancho y vacas que salieron: lo calcula RanchExitMonitor para toda la app.
+        viewModelScope.launch {
+            ranchExitMonitor.state.collect { ranch ->
+                _uiState.update { it.copy(ranchPerimeter = ranch.perimeter, ranchExits = ranch.exits) }
             }
         }
     }
