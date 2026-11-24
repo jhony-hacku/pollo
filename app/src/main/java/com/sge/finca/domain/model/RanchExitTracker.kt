@@ -43,10 +43,11 @@ class RanchExitTracker(
 
     /**
      * Procesa una lectura de todas las vacas y devuelve lo que cambió.
-     * Sin límite del rancho no se evalúa nada y se olvida el estado anterior.
+     * [areas] son los potreros (ver [RanchGeometry.areas]). Sin áreas no se evalúa nada y se
+     * olvida el estado anterior.
      */
-    fun update(perimeter: List<Coordinate>, animals: List<TrackedAnimal>, nowMs: Long): List<RanchEvent> {
-        if (perimeter.size < 3) {
+    fun update(areas: List<List<Coordinate>>, animals: List<TrackedAnimal>, nowMs: Long): List<RanchEvent> {
+        if (areas.none { it.size >= 3 }) {
             reset()
             return emptyList()
         }
@@ -61,7 +62,7 @@ class RanchExitTracker(
         for (tracked in animals) {
             val id = tracked.animal.id
             val position = Coordinate(tracked.latitude, tracked.longitude)
-            val outside = RanchGeometry.isOutside(perimeter, position, marginM)
+            val outside = RanchGeometry.isOutside(areas, position, marginM)
             val current = exits[id]
 
             if (outside) {

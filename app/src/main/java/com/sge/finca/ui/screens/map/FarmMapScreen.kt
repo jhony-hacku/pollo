@@ -37,8 +37,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.Dash
-import com.google.android.gms.maps.model.Gap
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
@@ -215,18 +213,7 @@ fun FarmMapScreen(
                                 inspection.paddocks.forEach { paddock ->
                                     PaddockOverlay(paddock, onClick = { selectedPaddockId = paddock.id })
                                 }
-                                // Límite del rancho: la cerca imaginaria que vigila RanchExitMonitor.
-                                if (herd.ranchPerimeter.size >= 3) {
-                                    Polyline(
-                                        points = (herd.ranchPerimeter + herd.ranchPerimeter.first()).map {
-                                            LatLng(it.latitude, it.longitude)
-                                        },
-                                        color = Color(0xFFEF6C00),
-                                        width = 6f,
-                                        pattern = listOf(Dash(30f), Gap(18f)),
-                                    )
-                                }
-                                // Halo rojo bajo cada vaca que está fuera del rancho.
+                                                // Halo rojo bajo cada vaca que está fuera del rancho.
                                 herd.ranchExits.forEach { exit ->
                                     val position = herd.animals
                                         .firstOrNull { it.animal.id == exit.animalId }
@@ -301,6 +288,7 @@ fun FarmMapScreen(
                                 AnimalInfoCard(
                                     tracked = tracked,
                                     onClose = animalViewModel::onSelectionCleared,
+                                    ranchPresence = herd.selectedRanchPresence,
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }

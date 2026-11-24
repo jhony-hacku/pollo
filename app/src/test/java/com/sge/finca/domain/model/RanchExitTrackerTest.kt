@@ -23,16 +23,16 @@ class RanchExitTrackerTest {
     @Test
     fun cowThatStaysInsideNeverAlerts() {
         val tracker = RanchExitTracker()
-        repeat(5) { assertTrue(tracker.update(ranch, listOf(cow("1", inside)), it.toLong()).isEmpty()) }
+        repeat(5) { assertTrue(tracker.update(listOf(ranch), listOf(cow("1", inside)), it.toLong()).isEmpty()) }
         assertTrue(tracker.currentExits.isEmpty())
     }
 
     @Test
     fun exitIsConfirmedAfterTwoReadingsAndAnnouncedOnce() {
         val tracker = RanchExitTracker(confirmReadings = 2)
-        assertTrue(tracker.update(ranch, listOf(cow("1", outside)), 1L).isEmpty())
+        assertTrue(tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L).isEmpty())
 
-        val events = tracker.update(ranch, listOf(cow("1", outside)), 2L)
+        val events = tracker.update(listOf(ranch), listOf(cow("1", outside)), 2L)
         assertEquals(1, events.size)
         val exit = (events.single() as RanchEvent.Exited).exit
         assertEquals("1", exit.animalId)
@@ -40,27 +40,27 @@ class RanchExitTrackerTest {
         assertEquals(2L, exit.since)
 
         // Sigue afuera: no se repite el aviso.
-        assertTrue(tracker.update(ranch, listOf(cow("1", outside)), 3L).isEmpty())
+        assertTrue(tracker.update(listOf(ranch), listOf(cow("1", outside)), 3L).isEmpty())
         assertEquals(1, tracker.currentExits.size)
     }
 
     @Test
     fun aSingleGpsJumpDoesNotAlert() {
         val tracker = RanchExitTracker(confirmReadings = 2)
-        tracker.update(ranch, listOf(cow("1", outside)), 1L)
-        tracker.update(ranch, listOf(cow("1", inside)), 2L)
-        assertTrue(tracker.update(ranch, listOf(cow("1", outside)), 3L).isEmpty())
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L)
+        tracker.update(listOf(ranch), listOf(cow("1", inside)), 2L)
+        assertTrue(tracker.update(listOf(ranch), listOf(cow("1", outside)), 3L).isEmpty())
         assertTrue(tracker.currentExits.isEmpty())
     }
 
     @Test
     fun returnIsAnnouncedAfterTwoReadingsInside() {
         val tracker = RanchExitTracker(confirmReadings = 2)
-        tracker.update(ranch, listOf(cow("1", outside)), 1L)
-        tracker.update(ranch, listOf(cow("1", outside)), 2L)
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L)
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 2L)
 
-        assertTrue(tracker.update(ranch, listOf(cow("1", inside)), 3L).isEmpty())
-        val events = tracker.update(ranch, listOf(cow("1", inside)), 4L)
+        assertTrue(tracker.update(listOf(ranch), listOf(cow("1", inside)), 3L).isEmpty())
+        val events = tracker.update(listOf(ranch), listOf(cow("1", inside)), 4L)
         assertEquals(listOf(RanchEvent.Returned("1", "Vaca 1")), events)
         assertTrue(tracker.currentExits.isEmpty())
     }
@@ -68,9 +68,9 @@ class RanchExitTrackerTest {
     @Test
     fun exitKeepsTheLatestPosition() {
         val tracker = RanchExitTracker(confirmReadings = 1)
-        tracker.update(ranch, listOf(cow("1", outside)), 1L)
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L)
         val further = at(100.0, 500.0)
-        tracker.update(ranch, listOf(cow("1", further)), 2L)
+        tracker.update(listOf(ranch), listOf(cow("1", further)), 2L)
         assertEquals(further, tracker.currentExits.single().position)
         assertEquals(1L, tracker.currentExits.single().since)
     }
@@ -78,7 +78,7 @@ class RanchExitTrackerTest {
     @Test
     fun eachCowIsTrackedSeparately() {
         val tracker = RanchExitTracker(confirmReadings = 1)
-        val events = tracker.update(ranch, listOf(cow("1", outside), cow("2", inside), cow("3", outside)), 1L)
+        val events = tracker.update(listOf(ranch), listOf(cow("1", outside), cow("2", inside), cow("3", outside)), 1L)
         assertEquals(listOf("1", "3"), events.map { (it as RanchEvent.Exited).exit.animalId })
         assertEquals(listOf("1", "3"), tracker.currentExits.map { it.animalId })
     }
@@ -86,15 +86,15 @@ class RanchExitTrackerTest {
     @Test
     fun deletedCowIsForgottenSilently() {
         val tracker = RanchExitTracker(confirmReadings = 1)
-        tracker.update(ranch, listOf(cow("1", outside)), 1L)
-        assertTrue(tracker.update(ranch, emptyList(), 2L).isEmpty())
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L)
+        assertTrue(tracker.update(listOf(ranch), emptyList(), 2L).isEmpty())
         assertTrue(tracker.currentExits.isEmpty())
     }
 
     @Test
     fun withoutARanchNothingIsWatched() {
         val tracker = RanchExitTracker(confirmReadings = 1)
-        tracker.update(ranch, listOf(cow("1", outside)), 1L)
+        tracker.update(listOf(ranch), listOf(cow("1", outside)), 1L)
         assertTrue(tracker.update(emptyList(), listOf(cow("1", outside)), 2L).isEmpty())
         assertTrue(tracker.currentExits.isEmpty())
     }

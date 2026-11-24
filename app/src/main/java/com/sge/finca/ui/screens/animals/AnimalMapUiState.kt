@@ -1,6 +1,5 @@
 package com.sge.finca.ui.screens.animals
 
-import com.sge.finca.domain.model.Coordinate
 import com.sge.finca.domain.model.RanchExit
 import com.sge.finca.domain.model.TrackedAnimal
 
@@ -9,15 +8,15 @@ data class AnimalMapUiState(
     val selectedAnimalId: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    /** Límite del rancho (envolvente de los potreros); vacío si aún no hay potreros. */
-    val ranchPerimeter: List<Coordinate> = emptyList(),
+    /** ¿Hay potreros que vigilar? Sin ellos no se sabe si una vaca está dentro o fuera. */
+    val hasRanch: Boolean = false,
     /** Vacas que están fuera del rancho ahora mismo. */
     val ranchExits: List<RanchExit> = emptyList(),
 ) {
     val selectedAnimal: TrackedAnimal?
         get() = animals.firstOrNull { it.animal.id == selectedAnimalId }
 
-    /** ¿La vaca seleccionada está fuera del rancho? */
-    val selectedIsOutsideRanch: Boolean
-        get() = selectedAnimalId != null && ranchExits.any { it.animalId == selectedAnimalId }
+    /** Estado respecto al rancho de la vaca seleccionada. */
+    val selectedRanchPresence: RanchPresence
+        get() = ranchPresenceOf(selectedAnimalId, hasRanch, ranchExits)
 }

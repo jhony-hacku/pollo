@@ -35,7 +35,7 @@ class AnimalMapViewModel @Inject constructor(
         // Límite del rancho y vacas que salieron: lo calcula RanchExitMonitor para toda la app.
         viewModelScope.launch {
             ranchExitMonitor.state.collect { ranch ->
-                _uiState.update { it.copy(ranchPerimeter = ranch.perimeter, ranchExits = ranch.exits) }
+                _uiState.update { it.copy(hasRanch = ranch.hasRanch, ranchExits = ranch.exits) }
             }
         }
     }

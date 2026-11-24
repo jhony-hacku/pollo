@@ -2,8 +2,8 @@ package com.sge.finca.ui.screens.animals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sge.finca.domain.model.TrackedAnimal
-import com.sge.finca.domain.repository.AnimalRepository
+import com.sge.finca.data.ranch.RanchExitMonitor
+import com.sge.finca.domain.usecase.ObserveTrackedAnimalsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,9 +12,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Lista de animales: posición en vivo de los collares (la misma que el mapa) y si cada vaca está
+ * dentro o fuera del rancho, según RanchExitMonitor.
+ */
 @HiltViewModel
 class AnimalListViewModel @Inject constructor(
-    private val animalRepository: AnimalRepository,
+    private val observeTrackedAnimals: ObserveTrackedAnimalsUseCase,
+    private val ranchExitMonitor: RanchExitMonitor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AnimalListUiState())
@@ -22,21 +27,13 @@ class AnimalListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            animalRepository.getAnimals().collect { animals ->
-                _uiState.update {
-                    it.copy(
-                        animals = animals.map { animal ->
-                            TrackedAnimal(
-                                animal = animal,
-                                latitude = animal.latitude,
-                                longitude = animal.longitude,
-                                isMoving = false,
-                                speedMetersPerSecond = 0f,
-                            )
-                        },
-                        isLoading = false,
-                    )
-                }
+            observeTrackedAnimals().collect { animals ->
+                _uiState.update { it.copy(animals = animals, isLoading = false) }
+            }
+        }
+        viewModelScope.launch {
+            ranchExitMonitor.state.collect { ranch ->
+                _uiState.update { it.copy(hasRanch = ranch.hasRanch, ranchExits = ranch.exits) }
             }
         }
     }

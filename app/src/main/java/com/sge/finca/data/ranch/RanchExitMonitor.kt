@@ -30,19 +30,24 @@ import kotlinx.coroutines.launch
 
 /** Lo que el mapa necesita saber del rancho. */
 data class RanchState(
-    /** Límite del rancho (envolvente de los potreros). Vacío si aún no hay potreros. */
-    val perimeter: List<Coordinate> = emptyList(),
+    /** Áreas vigiladas (los potreros). Vacío si aún no hay potreros: no hay rancho que vigilar. */
+    val areas: List<List<Coordinate>> = emptyList(),
     /** Vacas fuera del rancho ahora mismo. */
     val exits: List<RanchExit> = emptyList(),
-)
+) {
+    val hasRanch: Boolean get() = areas.isNotEmpty()
+
+    /** ¿Esta vaca está fuera del rancho? */
+    fun isOutside(animalId: String): Boolean = exits.any { it.animalId == animalId }
+}
 
 /**
  * Vigila que ninguna vaca salga del rancho, dentro de la app y sin servidor.
  *
- * Mientras hay una sesión con finca: arma el límite del rancho con los potreros (Room), escucha
- * las posiciones de los collares (las mismas que ve el mapa) y, con [RanchExitTracker], avisa con
- * una notificación cuando una vaca sale y cuando vuelve. El mapa lee [state] para dibujar el
- * límite y el aviso rojo.
+ * Mientras hay una sesión con finca: toma los potreros (Room) como áreas cercadas, escucha las
+ * posiciones de los collares (las mismas que ve el mapa) y, con [RanchExitTracker], avisa con una
+ * notificación cuando una vaca queda fuera de todos y cuando vuelve. El mapa y la lista de
+ * animales leen [state] para el aviso rojo y el estado "Dentro / Fuera del rancho".
  *
  * Se inicia una vez desde FincaApplication. Funciona mientras la app esté abierta (también en
  * segundo plano mientras Android no cierre el proceso).
@@ -97,19 +102,19 @@ class RanchExitMonitor @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun watch(farmId: String) {
         paddockRepository.observePaddocks(farmId)
-            .map { paddocks -> RanchGeometry.perimeter(paddocks) }
+            .map { paddocks -> RanchGeometry.areas(paddocks) }
             .distinctUntilChanged()
-            .flatMapLatest { perimeter ->
+            .flatMapLatest { areas ->
                 // Sin potreros no hay rancho que vigilar: no se consultan los collares.
-                if (perimeter.size < 3) {
-                    flowOf(perimeter to emptyList())
+                if (areas.isEmpty()) {
+                    flowOf(areas to emptyList())
                 } else {
-                    observeTrackedAnimals().map { animals -> perimeter to animals }
+                    observeTrackedAnimals().map { animals -> areas to animals }
                 }
             }
-            .collect { (perimeter, animals) ->
-                val events = tracker.update(perimeter, animals, System.currentTimeMillis())
-                _state.value = RanchState(perimeter, tracker.currentExits)
+            .collect { (areas, animals) ->
+                val events = tracker.update(areas, animals, System.currentTimeMillis())
+                _state.value = RanchState(areas, tracker.currentExits)
                 events.forEach { event ->
                     when (event) {
                         is RanchEvent.Exited -> {
