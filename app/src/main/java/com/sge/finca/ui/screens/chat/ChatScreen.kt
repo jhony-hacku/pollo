@@ -1,5 +1,7 @@
 package com.sge.finca.ui.screens.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,6 +69,14 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var draft by rememberSaveable { mutableStateOf("") }
 
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { selectedUri ->
+        selectedUri?.let { uri ->
+            viewModel.onSendImage(uri.toString())
+        }
+    }
+
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -91,13 +104,19 @@ fun ChatScreen(
 
                         Column {
                             Text(
-                                text = state.title.ifBlank { "Conversación" },
-                                style = MaterialTheme.typography.titleMedium,
+                                text = state.title.ifBlank {
+                                    "Conversación"
+                                },
+                                style =
+                                    MaterialTheme.typography.titleMedium,
                             )
+
                             Text(
                                 text = "Miembro de la finca",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style =
+                                    MaterialTheme.typography.labelSmall,
+                                color =
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -105,7 +124,8 @@ fun ChatScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector =
+                                Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Volver",
                         )
                     }
@@ -127,7 +147,8 @@ fun ChatScreen(
                 when {
                     state.isLoading -> {
                         CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center),
+                            modifier =
+                                Modifier.align(Alignment.Center),
                         )
                     }
 
@@ -137,7 +158,8 @@ fun ChatScreen(
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .padding(32.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color =
+                                MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -146,23 +168,39 @@ fun ChatScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             reverseLayout = true,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement =
+                                Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(12.dp),
                         ) {
                             items(
-                                items = state.messages.asReversed(),
+                                items =
+                                    state.messages.asReversed(),
                                 key = { it.id },
                             ) { message ->
                                 MessageBubble(
                                     message = message,
-                                    mine = message.senderUid == state.myUid,
+                                    mine =
+                                        message.senderUid == state.myUid,
                                     participantName = state.title,
-                                    participantPhotoUrl = state.participantPhotoUrl,
+                                    participantPhotoUrl =
+                                        state.participantPhotoUrl,
                                 )
                             }
                         }
                     }
                 }
+            }
+
+            if (state.isSendingImage) {
+                Text(
+                    text = "Subiendo imagen…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        top = 4.dp,
+                    ),
+                )
             }
 
             Row(
@@ -171,10 +209,33 @@ fun ChatScreen(
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                IconButton(
+                    onClick = {
+                        imagePicker.launch("image/*")
+                    },
+                    enabled = !state.isSendingImage,
+                ) {
+                    if (state.isSendingImage) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription =
+                                "Seleccionar imagen",
+                            tint =
+                                MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = draft,
                     onValueChange = {
-                        draft = it.take(ChatMessage.MAX_LENGTH)
+                        draft =
+                            it.take(ChatMessage.MAX_LENGTH)
                     },
                     placeholder = {
                         Text("Escribe un mensaje")
@@ -191,7 +252,8 @@ fun ChatScreen(
                     enabled = draft.isNotBlank(),
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        imageVector =
+                            Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Enviar",
                     )
                 }
@@ -214,7 +276,8 @@ private fun MessageBubble(
             MessageSurface(
                 message = message,
                 mine = true,
-                modifier = Modifier.align(Alignment.CenterEnd),
+                modifier =
+                    Modifier.align(Alignment.CenterEnd),
             )
         }
     } else {
@@ -260,24 +323,93 @@ private fun MessageSurface(
         tonalElevation = 1.dp,
     ) {
         Column(
-            modifier = Modifier.padding(
-                horizontal = 14.dp,
-                vertical = 9.dp,
-            ),
+            modifier = Modifier.padding(8.dp),
         ) {
-            Text(
-                text = message.text,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            if (message.hasImage) {
+                ChatImage(
+                    imageUrl = message.imageUrl,
+                )
+            }
+
+            if (message.hasImage && message.hasText) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (message.hasText) {
+                Text(
+                    text = message.text,
+                    style =
+                        MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(
+                        horizontal = 6.dp,
+                    ),
+                )
+            }
 
             Text(
                 text = formatChatTime(message.createdAt),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.End),
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(
+                        start = 8.dp,
+                        top = 4.dp,
+                        end = 4.dp,
+                    ),
             )
         }
     }
+}
+
+@Composable
+private fun ChatImage(
+    imageUrl: String,
+) {
+    SubcomposeAsyncImage(
+        model = imageUrl,
+        contentDescription = "Imagen enviada en el chat",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .width(240.dp)
+            .height(200.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        loading = {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(30.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        },
+        error = {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment =
+                        Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.Default.BrokenImage,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                    )
+                    Text(
+                        text = "No se pudo cargar",
+                        style =
+                            MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -289,7 +421,8 @@ private fun ProfilePhoto(
     Surface(
         modifier = Modifier.size(size.dp),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
+        color =
+            MaterialTheme.colorScheme.secondaryContainer,
     ) {
         if (photoUrl.isBlank()) {
             Box(
@@ -299,8 +432,10 @@ private fun ProfilePhoto(
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size((size * 0.58f).dp),
+                    tint =
+                        MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier =
+                        Modifier.size((size * 0.58f).dp),
                 )
             }
         } else {
@@ -317,7 +452,9 @@ private fun ProfilePhoto(
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size((size * 0.45f).dp),
+                            modifier = Modifier.size(
+                                (size * 0.45f).dp,
+                            ),
                             strokeWidth = 2.dp,
                         )
                     }
@@ -328,10 +465,14 @@ private fun ProfilePhoto(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
+                            imageVector =
+                                Icons.Default.Person,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size((size * 0.58f).dp),
+                            tint =
+                                MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(
+                                (size * 0.58f).dp,
+                            ),
                         )
                     }
                 },
@@ -341,16 +482,21 @@ private fun ProfilePhoto(
 }
 
 /** Hoy: solo la hora; otros días: fecha y hora. */
-internal fun formatChatTime(timestamp: Long): String {
+internal fun formatChatTime(
+    timestamp: Long,
+): String {
     val locale = Locale.forLanguageTag("es-CO")
     val today = Calendar.getInstance()
+
     val messageDate = Calendar.getInstance().apply {
         timeInMillis = timestamp
     }
 
     val sameDay =
-        today.get(Calendar.YEAR) == messageDate.get(Calendar.YEAR) &&
-                today.get(Calendar.DAY_OF_YEAR) == messageDate.get(Calendar.DAY_OF_YEAR)
+        today.get(Calendar.YEAR) ==
+                messageDate.get(Calendar.YEAR) &&
+                today.get(Calendar.DAY_OF_YEAR) ==
+                messageDate.get(Calendar.DAY_OF_YEAR)
 
     val pattern = if (sameDay) {
         "HH:mm"
@@ -358,5 +504,8 @@ internal fun formatChatTime(timestamp: Long): String {
         "dd/MM HH:mm"
     }
 
-    return SimpleDateFormat(pattern, locale).format(Date(timestamp))
+    return SimpleDateFormat(
+        pattern,
+        locale,
+    ).format(Date(timestamp))
 }

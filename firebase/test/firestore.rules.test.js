@@ -364,3 +364,46 @@ test('cada usuario solo ve su propio perfil', async () => {
   await assertSucceeds(setDoc(doc(db(WORKER), `users/${WORKER}`), { name: 'W' }));
   await assertFails(getDoc(doc(db(WORKER), `users/${OWNER}`)));
 });
+
+test('el chat permite imágenes de Cloudinary y rechaza URLs inválidas', async () => {
+  const messageRef = (id) =>
+    doc(db(WORKER), `${chatPath(WORKER)}/messages/${id}`);
+
+  await assertSucceeds(
+    setDoc(messageRef('imagen-ok'), {
+      senderUid: WORKER,
+      text: '',
+      imageUrl:
+        'https://res.cloudinary.com/xqfneh2c/image/upload/v1/chat.jpg',
+      createdAt: 10,
+    }),
+  );
+
+  await assertFails(
+    setDoc(messageRef('imagen-http'), {
+      senderUid: WORKER,
+      text: '',
+      imageUrl:
+        'http://res.cloudinary.com/xqfneh2c/image/upload/v1/chat.jpg',
+      createdAt: 10,
+    }),
+  );
+
+  await assertFails(
+    setDoc(messageRef('imagen-otro-servidor'), {
+      senderUid: WORKER,
+      text: '',
+      imageUrl: 'https://ejemplo.com/imagen.jpg',
+      createdAt: 10,
+    }),
+  );
+
+  await assertFails(
+    setDoc(messageRef('sin-contenido'), {
+      senderUid: WORKER,
+      text: '',
+      imageUrl: '',
+      createdAt: 10,
+    }),
+  );
+});

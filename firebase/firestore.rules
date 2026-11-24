@@ -224,10 +224,27 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read: if participant();
           allow create: if participant()
+            && request.resource.data.keys().hasOnly([
+              'senderUid',
+              'text',
+              'imageUrl',
+              'createdAt'
+            ])
             && request.resource.data.senderUid == request.auth.uid
             && request.resource.data.text is string
-            && request.resource.data.text.size() > 0
-            && request.resource.data.text.size() <= 1000;
+            && request.resource.data.text.size() <= 1000
+            && request.resource.data.get('imageUrl', '') is string
+            && request.resource.data.get('imageUrl', '').size() <= 2048
+            && (
+              request.resource.data.text.size() > 0
+              || request.resource.data.get('imageUrl', '').size() > 0
+            )
+            && (
+              request.resource.data.get('imageUrl', '').size() == 0
+              || request.resource.data.get('imageUrl', '').matches(
+                'https://res.cloudinary.com/[^/]+/image/upload/.*'
+              )
+            );
           allow update, delete: if false;
         }
       }

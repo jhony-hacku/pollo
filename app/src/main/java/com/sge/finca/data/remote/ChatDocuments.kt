@@ -5,17 +5,28 @@ import com.sge.finca.domain.model.ChatMessage
 import com.sge.finca.domain.model.ChatThread
 
 /*
- * Chat propietario ↔ trabajador (#74):
- *   farms/{farmId}/chats/{workerUid}                lastMessage, lastMessageAt, lastSenderUid
- *   farms/{farmId}/chats/{workerUid}/messages/{id}  senderUid, text, createdAt
- * sge-notifier escucha el documento de la conversación para avisar al otro participante.
+ * Chat propietario ↔ trabajador:
+ *
+ * farms/{farmId}/chats/{workerUid}
+ *   lastMessage, lastMessageAt, lastSenderUid
+ *
+ * farms/{farmId}/chats/{workerUid}/messages/{id}
+ *   senderUid, text, imageUrl, createdAt
  */
 
 fun DocumentSnapshot.toChatMessage(): ChatMessage? {
+    val text = getString("text").orEmpty()
+    val imageUrl = getString("imageUrl").orEmpty()
+
+    if (text.isBlank() && imageUrl.isBlank()) {
+        return null
+    }
+
     return ChatMessage(
         id = id,
         senderUid = getString("senderUid") ?: return null,
-        text = getString("text") ?: return null,
+        text = text,
+        imageUrl = imageUrl,
         createdAt = getLong("createdAt") ?: 0L,
     )
 }
@@ -25,6 +36,6 @@ fun DocumentSnapshot.toChatThread(): ChatThread? {
         workerUid = id,
         lastMessage = getString("lastMessage") ?: return null,
         lastMessageAt = getLong("lastMessageAt") ?: 0L,
-        lastSenderUid = getString("lastSenderUid") ?: "",
+        lastSenderUid = getString("lastSenderUid").orEmpty(),
     )
 }
