@@ -20,4 +20,9 @@
         name="camera"
         path="camera/" />
 
-</paths>
+    <!-- cacheDir/reports/ : reporte financiero (PDF/CSV) para compartir con el administrador -->
+    <cache-path
+        name="reports"
+        path="reports/" />
+
+</paths>

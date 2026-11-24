@@ -5,7 +5,9 @@ import com.sge.finca.platform.biometric.BiometricAvailability
 data class SettingsUiState(
     val userName: String = "",
     val userEmail: String = "",
-    val isLoading: Boolean = false,
+    val photoUrl: String = "",
+    val isLoading: Boolean = true,
+    val isSavingProfile: Boolean = false,
     /** Estado del sensor de huella del dispositivo. */
     val biometricAvailability: BiometricAvailability = BiometricAvailability.UNAVAILABLE,
     /** ¿El usuario actual tiene activado el inicio rápido con huella? */

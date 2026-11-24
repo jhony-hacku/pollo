@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.retryWhen
  *   joinedAt     Long (ms)
  *   displayName  String
  *   email        String
+ *   photoUrl     String
  *   grants       List<String> permisos que otorgó el propietario (#67). Solo lo escribe el
  *                propietario (WorkersRepository.setGrant); si falta, no hay ninguno.
  */
@@ -30,6 +31,7 @@ fun FarmMember.toFirestore(): Map<String, Any?> = mapOf(
     "joinedAt" to joinedAt,
     "displayName" to displayName,
     "email" to email,
+    "photoUrl" to photoUrl,
 )
 
 /** Devuelve null si el documento no existe o tiene un rol desconocido. */
@@ -47,6 +49,7 @@ fun DocumentSnapshot.toFarmMember(farmId: String): FarmMember? {
         // "name" era el campo que usaba el #23; se lee como respaldo.
         displayName = getString("displayName") ?: getString("name") ?: "",
         email = getString("email") ?: "",
+        photoUrl = getString("photoUrl") ?: "",
         grants = toGrants(),
     )
 }

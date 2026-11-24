@@ -7,63 +7,127 @@ const PREVIEW_LENGTH = 200;
 
 export const CHAT_MESSAGE = 'chat_message';
 
-/** Quién recibe el aviso de un mensaje nuevo: el otro lado de la conversación (#74). */
+/** El aviso se envía al otro participante de la conversación. */
 export function chatRecipients({ members, workerUid, senderUid }) {
-  if (senderUid === workerUid) return membersWithRole(members, 'OWNER');
-  return membersWithRole(members, 'WORKER').filter((uid) => uid === workerUid);
+  if (senderUid === workerUid) {
+    return membersWithRole(members, 'OWNER');
+  }
+
+  return membersWithRole(members, 'WORKER')
+    .filter((uid) => uid === workerUid);
 }
 
-/** "Mensaje de Pedro", o del propietario / de un trabajador si no tiene nombre. */
+/** Construye el título mostrado en la notificación. */
 export function chatTitle(sender) {
-  if (sender?.displayName) return `Mensaje de ${sender.displayName}`;
-  return sender?.role === 'OWNER' ? 'Mensaje del propietario' : 'Mensaje de un trabajador';
+  if (sender?.displayName) {
+    return `Mensaje de ${sender.displayName}`;
+  }
+
+  return sender?.role === 'OWNER'
+    ? 'Mensaje del propietario'
+    : 'Mensaje de un trabajador';
 }
 
-/** Mensaje FCM de solo datos: la app lo muestra en su canal "Mensajes" y abre la conversación. */
-export function buildChatMessage({ farmId, workerUid, title, text }) {
-  const body = text.length > PREVIEW_LENGTH ? `${text.slice(0, PREVIEW_LENGTH)}…` : text;
+/** Nombre corto utilizado por el estilo de conversación de Android. */
+export function chatSenderName(sender) {
+  if (sender?.displayName) {
+    return sender.displayName;
+  }
+
+  return sender?.role === 'OWNER'
+    ? 'Propietario'
+    : 'Trabajador';
+}
+
+/**
+ * Mensaje FCM de solo datos. La aplicación crea la notificación
+ * y abre la conversación correspondiente cuando el usuario la toca.
+ */
+export function buildChatMessage({
+  farmId,
+  workerUid,
+  title,
+  text,
+  senderName = '',
+  photoUrl = '',
+}) {
+  const body = text.length > PREVIEW_LENGTH
+    ? `${text.slice(0, PREVIEW_LENGTH)}…`
+    : text;
+
   return {
-    data: { type: CHAT_MESSAGE, farmId: String(farmId), workerUid: String(workerUid), title, body },
-    android: { priority: 'high', ttl: 24 * 60 * 60 * 1000 },
+    data: {
+      type: CHAT_MESSAGE,
+      farmId: String(farmId),
+      workerUid: String(workerUid),
+      title: String(title),
+      body: String(body),
+      senderName: String(senderName),
+      photoUrl: String(photoUrl),
+    },
+    android: {
+      priority: 'high',
+      ttl: 24 * 60 * 60 * 1000,
+    },
   };
 }
 
 /**
- * Chat propietario ↔ trabajador (#74): avisa al otro participante cuando llega un mensaje.
- *
- * - Escucha los documentos de conversación (farms/{finca}/chats/{trabajador}), que la app
- *   actualiza con cada mensaje. Son pocos y sin filtros: no necesita índices.
- * - Al arrancar llegan todas las conversaciones: solo se avisa el último mensaje si es reciente.
- * - Idempotente con notificationLog/chat_{finca}_{trabajador}_{hora del mensaje}.
+ * Escucha las conversaciones y avisa al otro participante
+ * cuando llega un mensaje nuevo.
  */
 export class ChatNotifier {
-  constructor({ db, messaging, config, log = console.log, now = Date.now }) {
+  constructor({
+    db,
+    messaging,
+    config,
+    log = console.log,
+    now = Date.now,
+  }) {
     this.db = db;
     this.messaging = messaging;
     this.config = config;
     this.log = log;
     this.now = now;
-    this.stats = { listening: false, sent: 0, failed: 0 };
+    this.stats = {
+      listening: false,
+      sent: 0,
+      failed: 0,
+    };
   }
 
   start() {
-    this.unsubscribe = this.db.collectionGroup('chats').onSnapshot(
-      (snapshot) => {
-        this.stats.listening = true;
-        for (const change of snapshot.docChanges()) {
-          if (change.type === 'removed') continue;
-          this.handle(change.doc).catch((err) => {
-            this.stats.failed++;
-            this.log(`ERROR avisando ${change.doc.ref.path}: ${err.stack ?? err}`);
-          });
-        }
-      },
-      (err) => {
-        this.stats.listening = false;
-        this.log(`ERROR del listener del chat (reintento en 30 s): ${err.message}`);
-        setTimeout(() => this.start(), RESTART_DELAY_MS).unref();
-      },
-    );
+    this.unsubscribe = this.db
+      .collectionGroup('chats')
+      .onSnapshot(
+        (snapshot) => {
+          this.stats.listening = true;
+
+          for (const change of snapshot.docChanges()) {
+            if (change.type === 'removed') {
+              continue;
+            }
+
+            this.handle(change.doc).catch((error) => {
+              this.stats.failed += 1;
+              this.log(
+                `ERROR avisando ${change.doc.ref.path}: ${error.stack ?? error}`,
+              );
+            });
+          }
+        },
+        (error) => {
+          this.stats.listening = false;
+          this.log(
+            `ERROR del listener del chat (reintento en 30 s): ${error.message}`,
+          );
+
+          setTimeout(
+            () => this.start(),
+            RESTART_DELAY_MS,
+          ).unref();
+        },
+      );
   }
 
   stop() {
@@ -73,26 +137,89 @@ export class ChatNotifier {
 
   async handle(doc) {
     const farmId = doc.ref.parent.parent?.id;
-    const { lastMessage, lastMessageAt, lastSenderUid } = doc.data() ?? {};
-    if (!farmId || !lastMessage || !lastSenderUid) return;
-    if (!isRecent({ createdAt: lastMessageAt }, this.now(), this.config.maxAgeMinutes)) return;
-    const claimId = `chat_${farmId}_${doc.id}_${lastMessageAt}`;
-    if (!(await claimOnce(this.db, claimId, { farmId, workerUid: doc.id }))) return;
+    const {
+      lastMessage,
+      lastMessageAt,
+      lastSenderUid,
+    } = doc.data() ?? {};
 
-    const membersSnap = await this.db.collection('farms').doc(farmId).collection('members').get();
-    const members = membersSnap.docs.map((m) => ({
-      id: m.id, role: m.get('role'), isActive: m.get('isActive'), displayName: m.get('displayName'),
+    if (!farmId || !lastMessage || !lastSenderUid) {
+      return;
+    }
+
+    if (
+      !isRecent(
+        { createdAt: lastMessageAt },
+        this.now(),
+        this.config.maxAgeMinutes,
+      )
+    ) {
+      return;
+    }
+
+    const claimId =
+      `chat_${farmId}_${doc.id}_${lastMessageAt}`;
+
+    const claimed = await claimOnce(
+      this.db,
+      claimId,
+      {
+        farmId,
+        workerUid: doc.id,
+      },
+    );
+
+    if (!claimed) {
+      return;
+    }
+
+    const membersSnapshot = await this.db
+      .collection('farms')
+      .doc(farmId)
+      .collection('members')
+      .get();
+
+    const members = membersSnapshot.docs.map((member) => ({
+      id: member.id,
+      role: member.get('role'),
+      isActive: member.get('isActive'),
+      displayName: member.get('displayName'),
+      photoUrl: member.get('photoUrl'),
     }));
-    const uids = chatRecipients({ members, workerUid: doc.id, senderUid: lastSenderUid });
+
+    const sender = members.find(
+      (member) => member.id === lastSenderUid,
+    );
+
+    const recipientUids = chatRecipients({
+      members,
+      workerUid: doc.id,
+      senderUid: lastSenderUid,
+    });
+
     const message = buildChatMessage({
       farmId,
       workerUid: doc.id,
-      title: chatTitle(members.find((m) => m.id === lastSenderUid)),
+      title: chatTitle(sender),
       text: lastMessage,
+      senderName: chatSenderName(sender),
+      photoUrl: sender?.photoUrl ?? '',
     });
-    const result = await sendToUsers({ db: this.db, messaging: this.messaging, uids, message, log: this.log });
+
+    const result = await sendToUsers({
+      db: this.db,
+      messaging: this.messaging,
+      uids: recipientUids,
+      message,
+      log: this.log,
+    });
+
     this.stats.sent += result.sent;
     this.stats.failed += result.failed;
-    this.log(`${farmId}/chats/${doc.id}: mensaje avisado a ${result.sent}/${result.targets} dispositivos`);
+
+    this.log(
+      `${farmId}/chats/${doc.id}: mensaje avisado a ` +
+        `${result.sent}/${result.targets} dispositivos`,
+    );
   }
 }
