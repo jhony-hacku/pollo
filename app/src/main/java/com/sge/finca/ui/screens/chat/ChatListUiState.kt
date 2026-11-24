@@ -6,6 +6,7 @@ import com.sge.finca.domain.model.ChatThread
 data class ChatListItem(
     val workerUid: String,
     val name: String,
+    val photoUrl: String = "",
     val thread: ChatThread?,
 )
 

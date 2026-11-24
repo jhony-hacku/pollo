@@ -15,4 +15,10 @@ interface UserRepository {
      * demás repositorios. Emite null si no hay sesión o el usuario aún no tiene finca.
      */
     fun observeCurrentFarmId(): Flow<String?>
+
+    /**
+     * Actualiza el nombre y, si [selectedPhotoUri] no es null, sube una nueva foto de perfil.
+     * La URI se recibe como String para que el contrato no dependa de clases de Android.
+     */
+    suspend fun updateProfile(name: String, selectedPhotoUri: String?)
 }
