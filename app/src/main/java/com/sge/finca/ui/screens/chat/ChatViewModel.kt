@@ -33,8 +33,11 @@ class ChatViewModel @Inject constructor(
     workersRepository: WorkersRepository,
 ) : ViewModel() {
 
-    private val workerUid: String = checkNotNull(savedStateHandle["workerUid"])
+    private val workerUid: String =
+        checkNotNull(savedStateHandle["workerUid"])
+
     private val error = MutableStateFlow<String?>(null)
+    private val sendingImage = MutableStateFlow(false)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<ChatUiState> = sessionRepository.session
@@ -45,53 +48,66 @@ class ChatViewModel @Inject constructor(
                     ChatUiState(isLoading = false),
                 )
 
-            val participant: Flow<ChatParticipant> = if (session.isOwner) {
-                workersRepository.observeWorkers(farmId).map { workers ->
-                    val worker = workers.firstOrNull { it.uid == workerUid }
+            val participant: Flow<ChatParticipant> =
+                if (session.isOwner) {
+                    workersRepository
+                        .observeWorkers(farmId)
+                        .map { workers ->
+                            val worker = workers.firstOrNull {
+                                it.uid == workerUid
+                            }
 
-                    ChatParticipant(
-                        name = worker?.name
-                            ?.takeIf { it.isNotBlank() }
-                            ?: worker?.email
-                                ?.takeIf { it.isNotBlank() }
-                            ?: "Trabajador",
-                        photoUrl = worker?.photoUrl.orEmpty(),
-                    )
+                            ChatParticipant(
+                                name = worker?.name
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: worker?.email
+                                        ?.takeIf { it.isNotBlank() }
+                                    ?: "Trabajador",
+                                photoUrl = worker?.photoUrl.orEmpty(),
+                            )
+                        }
+                } else {
+                    workersRepository
+                        .observeOwner(farmId)
+                        .map { owner ->
+                            ChatParticipant(
+                                name = owner?.name
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: owner?.email
+                                        ?.takeIf { it.isNotBlank() }
+                                    ?: "Propietario",
+                                photoUrl = owner?.photoUrl.orEmpty(),
+                            )
+                        }
                 }
-            } else {
-                workersRepository.observeOwner(farmId).map { owner ->
-                    ChatParticipant(
-                        name = owner?.name
-                            ?.takeIf { it.isNotBlank() }
-                            ?: owner?.email
-                                ?.takeIf { it.isNotBlank() }
-                            ?: "Propietario",
-                        photoUrl = owner?.photoUrl.orEmpty(),
-                    )
-                }
-            }
 
             combine(
-                chatRepository.observeMessages(farmId, workerUid),
+                chatRepository.observeMessages(
+                    farmId,
+                    workerUid,
+                ),
                 participant,
                 error,
-            ) { messages, otherPerson, pendingError ->
+                sendingImage,
+            ) { messages, otherPerson, pendingError, isSendingImage ->
                 ChatUiState(
                     isLoading = false,
                     title = otherPerson.name,
                     participantPhotoUrl = otherPerson.photoUrl,
                     messages = messages,
                     myUid = session.uid,
+                    isSendingImage = isSendingImage,
                     errorMessage = pendingError,
                 )
             }
         }
-        .catch { error ->
-            Log.e("SgeChat", "No se pudo cargar la conversación", error)
+        .catch { caughtError ->
+            Log.e("SgeChat", "No se pudo cargar la conversación", caughtError)
             emit(
                 ChatUiState(
                     isLoading = false,
-                    errorMessage = "No se pudo cargar la conversación. Revisa tu conexión e intenta de nuevo",
+                    errorMessage =
+                        "No se pudo cargar la conversación. Revisa tu conexión e intenta de nuevo",
                 ),
             )
         }
@@ -102,15 +118,48 @@ class ChatViewModel @Inject constructor(
         )
 
     fun onSend(text: String) {
-        val farmId = sessionRepository.session.value.farmId ?: return
+        val farmId = sessionRepository.session.value.farmId
+            ?: return
 
         viewModelScope.launch {
             try {
-                chatRepository.send(farmId, workerUid, text)
+                chatRepository.send(
+                    farmId = farmId,
+                    workerUid = workerUid,
+                    text = text,
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 error.value = e.message ?: "No se pudo enviar el mensaje"
+            }
+        }
+    }
+
+    fun onSendImage(selectedImageUri: String) {
+        val farmId = sessionRepository.session.value.farmId
+            ?: return
+
+        if (sendingImage.value) {
+            return
+        }
+
+        viewModelScope.launch {
+            sendingImage.value = true
+            error.value = null
+
+            try {
+                chatRepository.sendImage(
+                    farmId = farmId,
+                    workerUid = workerUid,
+                    selectedImageUri = selectedImageUri,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error.value = e.message ?: "No se pudo enviar la imagen"
+            } finally {
+                sendingImage.value = false
             }
         }
     }

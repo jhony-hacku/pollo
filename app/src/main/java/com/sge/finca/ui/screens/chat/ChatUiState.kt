@@ -10,5 +10,7 @@ data class ChatUiState(
     val participantPhotoUrl: String = "",
     val messages: List<ChatMessage> = emptyList(),
     val myUid: String? = null,
+    /** Indica que una imagen se está subiendo y enviando. */
+    val isSendingImage: Boolean = false,
     val errorMessage: String? = null,
 )
