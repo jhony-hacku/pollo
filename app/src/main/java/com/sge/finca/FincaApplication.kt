@@ -6,6 +6,7 @@ import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.sge.finca.data.ranch.RanchExitMonitor
 import com.sge.finca.data.sync.FarmSyncListener
 import com.sge.finca.data.sync.SyncScheduler
 import com.sge.finca.platform.notifications.AlertPushNotifier
@@ -45,6 +46,9 @@ class FincaApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var syncScheduler: SyncScheduler
 
+    @Inject
+    lateinit var ranchExitMonitor: RanchExitMonitor
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -64,6 +68,8 @@ class FincaApplication : Application(), Configuration.Provider {
         farmSyncListener.start()
         syncScheduler.requestSync()
         syncScheduler.schedulePeriodicSync()
+        // Avisa si una vaca sale del rancho (límite = envolvente de los potreros), sin servidor.
+        ranchExitMonitor.start()
     }
 
     private fun schedulePhotoCleanup() {

@@ -1,6 +1,7 @@
 package com.sge.finca.data.repository
 
 import android.util.Log
+import com.sge.finca.data.injection.ApplicationScope
 import com.sge.finca.data.remote.collar.CollarApi
 import com.sge.finca.data.remote.collar.toLocationsByAnimalId
 import com.sge.finca.domain.model.Animal
@@ -9,15 +10,18 @@ import com.sge.finca.domain.repository.AnimalLocationSource
 import com.sge.finca.domain.repository.AnimalRepository
 import com.sge.finca.domain.repository.CollarRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
@@ -31,7 +35,8 @@ import javax.inject.Singleton
  * - Antes de consultar, se asegura de que cada animal tenga su collar (lo crea si falta y
  *   actualiza el anclaje si el animal se editó). Así funciona también con animales que ya
  *   estaban registrados antes de existir el proveedor.
- * - Consulta cada [POLL_INTERVAL_MS] mientras alguien observe el Flow (mapa o lista abiertos).
+ * - Consulta cada [POLL_INTERVAL_MS] mientras alguien observe el Flow (mapa, lista o la
+ *   vigilancia del rancho); todos comparten la misma consulta.
  * - Si la lista de animales cambia, reinicia con los datos nuevos.
  * - Si falla la red o el servidor, conserva la última posición conocida y reintenta con
  *   espera exponencial (hasta [MAX_BACKOFF_MS]); la pantalla nunca se rompe por un error.
@@ -42,10 +47,22 @@ class RemoteAnimalLocationSource @Inject constructor(
     private val animalRepository: AnimalRepository,
     private val collarRepository: CollarRepository,
     private val collarApi: CollarApi,
+    @ApplicationScope private val scope: CoroutineScope,
 ) : AnimalLocationSource {
 
+    /**
+     * Una sola consulta compartida: el mapa, la lista y la vigilancia del rancho ven las mismas
+     * posiciones sin multiplicar las peticiones al proveedor. Se detiene 5 s después de que nadie
+     * la observe.
+     */
+    private val sharedLocations: Flow<Map<String, AnimalLocation>> by lazy {
+        pollAnimals().shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
+    }
+
+    override fun observeLocations(): Flow<Map<String, AnimalLocation>> = sharedLocations
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    override fun observeLocations(): Flow<Map<String, AnimalLocation>> =
+    private fun pollAnimals(): Flow<Map<String, AnimalLocation>> =
         animalRepository.getAnimals()
             .map { animals -> animals.sortedBy { it.id } }
             // Solo reiniciar si cambia algo que le importa al collar (no la foto, por ejemplo).
@@ -106,6 +123,7 @@ class RemoteAnimalLocationSource @Inject constructor(
         private const val TAG = "CollarTracking"
         const val POLL_INTERVAL_MS = 3_000L
         const val MAX_BACKOFF_MS = 30_000L
+        private const val STOP_TIMEOUT_MS = 5_000L
 
         /** 3 s, 6 s, 12 s, 24 s, 30 s, 30 s… */
         fun backoffMillis(consecutiveFailures: Int): Long {

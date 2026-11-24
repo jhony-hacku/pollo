@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -211,6 +213,20 @@ fun FarmMapScreen(
                                 inspection.paddocks.forEach { paddock ->
                                     PaddockOverlay(paddock, onClick = { selectedPaddockId = paddock.id })
                                 }
+                                                // Halo rojo bajo cada vaca que está fuera del rancho.
+                                herd.ranchExits.forEach { exit ->
+                                    val position = herd.animals
+                                        .firstOrNull { it.animal.id == exit.animalId }
+                                        ?.let { LatLng(it.latitude, it.longitude) }
+                                        ?: LatLng(exit.position.latitude, exit.position.longitude)
+                                    Circle(
+                                        center = position,
+                                        radius = 14.0,
+                                        fillColor = RanchAlertRed.copy(alpha = 0.25f),
+                                        strokeColor = RanchAlertRed,
+                                        strokeWidth = 4f,
+                                    )
+                                }
                                 if (inspection.routePoints.size >= 2) {
                                     Polyline(
                                         points = inspection.routePoints.map {
@@ -235,6 +251,20 @@ fun FarmMapScreen(
                             }
                         }
 
+                        RanchExitBanner(
+                            exits = herd.ranchExits,
+                            onClick = animalViewModel::onAnimalSelected,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth()
+                                // Debajo del panel de la inspección y sin tapar el botón de centrar.
+                                .padding(
+                                    start = 12.dp,
+                                    end = 72.dp,
+                                    top = 12.dp + if (inspection.isTracking) statsHeight else 0.dp,
+                                ),
+                        )
+
                         if (inspection.isTracking) {
                             TrackingStatsOverlay(
                                 elapsedSeconds = inspection.elapsedSeconds,
@@ -258,6 +288,7 @@ fun FarmMapScreen(
                                 AnimalInfoCard(
                                     tracked = tracked,
                                     onClose = animalViewModel::onSelectionCleared,
+                                    ranchPresence = herd.selectedRanchPresence,
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }

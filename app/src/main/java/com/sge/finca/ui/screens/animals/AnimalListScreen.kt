@@ -78,7 +78,11 @@ fun AnimalListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(state.animals, key = { it.animal.id }) { tracked ->
-                    AnimalListItem(tracked, onClick = { onAnimalClick(tracked.animal.id) })
+                    AnimalListItem(
+                        tracked = tracked,
+                        ranchPresence = ranchPresenceOf(tracked.animal.id, state.hasRanch, state.ranchExits),
+                        onClick = { onAnimalClick(tracked.animal.id) },
+                    )
                 }
             }
         }
@@ -86,7 +90,7 @@ fun AnimalListScreen(
 }
 
 @Composable
-private fun AnimalListItem(tracked: TrackedAnimal, onClick: () -> Unit) {
+private fun AnimalListItem(tracked: TrackedAnimal, ranchPresence: RanchPresence, onClick: () -> Unit) {
     val animal = tracked.animal
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
@@ -109,6 +113,7 @@ private fun AnimalListItem(tracked: TrackedAnimal, onClick: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                RanchStatusLabel(ranchPresence)
                 Text(
                     text = "Lat: %.6f".format(tracked.latitude),
                     style = MaterialTheme.typography.bodySmall,

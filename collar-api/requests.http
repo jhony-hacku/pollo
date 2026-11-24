@@ -56,3 +56,24 @@ X-Api-Key: {{apiKey}}
 ### Eliminar el collar
 DELETE {{baseUrl}}/v1/collars/{{collarId}}
 X-Api-Key: {{apiKey}}
+
+### ─── DEMO: hacer que una vaca se salga del rancho ───────────────────────
+### 1) Busca el collar de la vaca por su nombre (animalName) y copia su "id" en @demoCollarId
+GET {{baseUrl}}/v1/collars
+X-Api-Key: {{apiKey}}
+
+### 2) Ampliar el radio: la vaca empieza a caminar hasta ~400 m de su potrero y sale del rancho.
+###    En ~10-30 s llega la notificación "¡<vaca> salió del rancho!" y el aviso rojo en el mapa.
+@demoCollarId = pega-aqui-el-id-del-collar
+PATCH {{baseUrl}}/v1/collars/{{demoCollarId}}
+X-Api-Key: {{apiKey}}
+Content-Type: application/json
+
+{ "radiusMeters": 400 }
+
+### 3) Devolverla: radio normal de 40 m. Vuelve sola y llega "<vaca> volvió al rancho".
+PATCH {{baseUrl}}/v1/collars/{{demoCollarId}}
+X-Api-Key: {{apiKey}}
+Content-Type: application/json
+
+{ "radiusMeters": 40 }

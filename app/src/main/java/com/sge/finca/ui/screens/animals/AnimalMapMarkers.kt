@@ -127,6 +127,7 @@ internal fun AnimalInfoCard(
     tracked: TrackedAnimal,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    ranchPresence: RanchPresence = RanchPresence.NO_RANCH,
 ) {
     val animal = tracked.animal
     Card(modifier = modifier.fillMaxWidth()) {
@@ -150,6 +151,7 @@ internal fun AnimalInfoCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                RanchStatusLabel(ranchPresence)
                 Text(
                     text = "Lat: %.6f".format(tracked.latitude),
                     style = MaterialTheme.typography.bodySmall,

@@ -99,4 +99,5 @@ object NotificationDestinations {
     const val TRANSACTION = "transaction"
     const val ALERT = "alert"
     const val CHAT = "chat"
+    const val FARM_MAP = "farm_map"
 }
