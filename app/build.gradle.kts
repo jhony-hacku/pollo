@@ -11,24 +11,44 @@ plugins {
     alias(libs.plugins.firebase.crashlytics)
 }
 
-// local.properties no se sube al repo: ahí van los tokens y claves de cada desarrollador.
+// local.properties no se sube al repositorio.
+// Allí se guardan los tokens y configuraciones locales.
 val localProperties = Properties().apply {
     val contents = providers.fileContents(
-        rootProject.layout.projectDirectory.file("local.properties")
+        rootProject.layout.projectDirectory.file("local.properties"),
     ).asText.orElse("").get()
 
     load(StringReader(contents))
 }
 
-val mapboxAccessToken: String = localProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")
+val mapboxAccessToken: String =
+    localProperties.getProperty("MAPBOX_ACCESS_TOKEN", "")
 
-// Proveedor de collares GPS (collar-api/). Sin valores, apunta al servidor local desde el emulador.
+// Proveedor de collares GPS.
+// Sin valores, apunta al servidor local desde el emulador.
 // Retrofit exige que la URL base termine en "/".
 val collarApiBaseUrl: String = localProperties
-    .getProperty("COLLAR_API_BASE_URL", "http://10.0.2.2:8080/")
+    .getProperty(
+        "COLLAR_API_BASE_URL",
+        "http://10.0.2.2:8080/",
+    )
     .trim()
-    .let { if (it.endsWith("/")) it else "$it/" }
-val collarApiKey: String = localProperties.getProperty("COLLAR_API_KEY", "sge-dev-key").trim()
+    .let { url ->
+        if (url.endsWith("/")) url else "$url/"
+    }
+
+val collarApiKey: String = localProperties
+    .getProperty("COLLAR_API_KEY", "sge-dev-key")
+    .trim()
+
+// Cloudinary para las fotos de perfil.
+val cloudinaryCloudName: String = localProperties
+    .getProperty("CLOUDINARY_CLOUD_NAME", "")
+    .trim()
+
+val cloudinaryUploadPreset: String = localProperties
+    .getProperty("CLOUDINARY_UPLOAD_PRESET", "")
+    .trim()
 
 android {
     namespace = "com.sge.finca"
@@ -43,15 +63,43 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        resValue("string", "mapbox_access_token", mapboxAccessToken)
+        testInstrumentationRunner =
+            "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "COLLAR_API_BASE_URL", "\"$collarApiBaseUrl\"")
-        buildConfigField("String", "COLLAR_API_KEY", "\"$collarApiKey\"")
+        resValue(
+            "string",
+            "mapbox_access_token",
+            mapboxAccessToken,
+        )
+
+        buildConfigField(
+            "String",
+            "COLLAR_API_BASE_URL",
+            "\"$collarApiBaseUrl\"",
+        )
+
+        buildConfigField(
+            "String",
+            "COLLAR_API_KEY",
+            "\"$collarApiKey\"",
+        )
+
+        buildConfigField(
+            "String",
+            "CLOUDINARY_CLOUD_NAME",
+            "\"$cloudinaryCloudName\"",
+        )
+
+        buildConfigField(
+            "String",
+            "CLOUDINARY_UPLOAD_PRESET",
+            "\"$cloudinaryUploadPreset\"",
+        )
 
         manifestPlaceholders["MAPS_API_KEY"] =
-            providers.gradleProperty("MAPS_API_KEY").getOrElse("")
+            providers.gradleProperty("MAPS_API_KEY")
+                .getOrElse("")
     }
 
     buildTypes {
@@ -112,9 +160,6 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.analytics)
-
-    // implementation(libs.firebase.storage)
-    // Push de transacciones nuevas (llegan desde notifier/ en el LXC de Proxmox)
     implementation(libs.firebase.messaging)
 
     // Maps & Location
@@ -129,7 +174,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // Network (proveedor de collares GPS)
+    // Network
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.okhttp)
@@ -146,7 +191,7 @@ dependencies {
     // Runtime permissions
     implementation(libs.accompanist.permissions)
 
-    // Biometric authentication (huella dactilar)
+    // Biometric authentication
     implementation(libs.androidx.biometric)
 
     // Coroutines for Play Services
@@ -154,10 +199,24 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-    debugImplementation(libs.androidx.compose.ui.tooling)
+
+    androidTestImplementation(
+        platform(libs.androidx.compose.bom),
+    )
+    androidTestImplementation(
+        libs.androidx.compose.ui.test.junit4,
+    )
+    androidTestImplementation(
+        libs.androidx.espresso.core,
+    )
+    androidTestImplementation(
+        libs.androidx.junit,
+    )
+
+    debugImplementation(
+        libs.androidx.compose.ui.test.manifest,
+    )
+    debugImplementation(
+        libs.androidx.compose.ui.tooling,
+    )
 }

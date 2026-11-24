@@ -25,6 +25,7 @@ data class FarmMember(
     val joinedAt: Long,
     val displayName: String = "",
     val email: String = "",
+    val photoUrl: String = "",
     /** Permisos que el propietario le otorgó a este miembro (#67); solo cuentan los [Permission.grantable]. */
     val grants: Set<Permission> = emptySet(),
 )
@@ -37,6 +38,7 @@ data class UserProfile(
     val uid: String,
     val name: String,
     val email: String,
+    val photoUrl: String = "",
     val farmId: String? = null,
     val role: FarmRole? = null,
     val createdAt: Long,

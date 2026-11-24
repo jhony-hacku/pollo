@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Conversación entre el propietario y el trabajador [workerUid] (#74). */
+/** Conversación entre el propietario y el trabajador indicado en la ruta. */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -39,29 +39,69 @@ class ChatViewModel @Inject constructor(
     val uiState: StateFlow<ChatUiState> = sessionRepository.session
         .filter { !it.loading }
         .flatMapLatest { session ->
-            val farmId = session.farmId ?: return@flatMapLatest flowOf(ChatUiState(isLoading = false))
-            val title: Flow<String> = if (session.isOwner) {
+            val farmId = session.farmId
+                ?: return@flatMapLatest flowOf(
+                    ChatUiState(isLoading = false),
+                )
+
+            val participant: Flow<ChatParticipant> = if (session.isOwner) {
                 workersRepository.observeWorkers(farmId).map { workers ->
-                    workers.firstOrNull { it.uid == workerUid }?.name?.ifBlank { null } ?: "Trabajador"
+                    val worker = workers.firstOrNull { it.uid == workerUid }
+
+                    ChatParticipant(
+                        name = worker?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: worker?.email
+                                ?.takeIf { it.isNotBlank() }
+                            ?: "Trabajador",
+                        photoUrl = worker?.photoUrl.orEmpty(),
+                    )
                 }
             } else {
-                flowOf("Propietario")
+                workersRepository.observeOwner(farmId).map { owner ->
+                    ChatParticipant(
+                        name = owner?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: owner?.email
+                                ?.takeIf { it.isNotBlank() }
+                            ?: "Propietario",
+                        photoUrl = owner?.photoUrl.orEmpty(),
+                    )
+                }
             }
-            combine(chatRepository.observeMessages(farmId, workerUid), title, error) { messages, name, pendingError ->
+
+            combine(
+                chatRepository.observeMessages(farmId, workerUid),
+                participant,
+                error,
+            ) { messages, otherPerson, pendingError ->
                 ChatUiState(
                     isLoading = false,
-                    title = name,
+                    title = otherPerson.name,
+                    participantPhotoUrl = otherPerson.photoUrl,
                     messages = messages,
                     myUid = session.uid,
                     errorMessage = pendingError,
                 )
             }
         }
-        .catch { emit(ChatUiState(isLoading = false, errorMessage = "No se pudo cargar la conversación")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
+        .catch {
+            emit(
+                ChatUiState(
+                    isLoading = false,
+                    errorMessage = "No se pudo cargar la conversación",
+                ),
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ChatUiState(),
+        )
 
     fun onSend(text: String) {
         val farmId = sessionRepository.session.value.farmId ?: return
+
         viewModelScope.launch {
             try {
                 chatRepository.send(farmId, workerUid, text)
@@ -76,4 +116,9 @@ class ChatViewModel @Inject constructor(
     fun onErrorShown() {
         error.value = null
     }
+
+    private data class ChatParticipant(
+        val name: String,
+        val photoUrl: String,
+    )
 }
