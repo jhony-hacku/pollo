@@ -1,7 +1,9 @@
 package com.sge.finca.ui.screens.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,19 +72,36 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var draft by rememberSaveable { mutableStateOf("") }
-
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { selectedUri ->
-        selectedUri?.let { uri ->
-            viewModel.onSendImage(uri.toString())
-        }
+    var showParticipantProfile by rememberSaveable {
+        mutableStateOf(false)
     }
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.onErrorShown()
+        }
+    }
+
+    if (showParticipantProfile) {
+        BackHandler {
+            showParticipantProfile = false
+        }
+
+        ParticipantProfileScreen(
+            state = state,
+            onNavigateBack = {
+                showParticipantProfile = false
+            },
+        )
+        return
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { selectedUri ->
+        selectedUri?.let { uri ->
+            viewModel.onSendImage(uri.toString())
         }
     }
 
@@ -92,6 +113,18 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(
+                                enabled = !state.isLoading,
+                                onClick = {
+                                    showParticipantProfile = true
+                                },
+                            )
+                            .padding(
+                                horizontal = 4.dp,
+                                vertical = 2.dp,
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ProfilePhoto(
@@ -107,14 +140,14 @@ fun ChatScreen(
                                 text = state.title.ifBlank {
                                     "Conversación"
                                 },
-                                style =
-                                    MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium,
                             )
 
                             Text(
-                                text = "Miembro de la finca",
-                                style =
-                                    MaterialTheme.typography.labelSmall,
+                                text = state.participantRole.ifBlank {
+                                    "Miembro de la finca"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
                                 color =
                                     MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -147,8 +180,7 @@ fun ChatScreen(
                 when {
                     state.isLoading -> {
                         CircularProgressIndicator(
-                            modifier =
-                                Modifier.align(Alignment.Center),
+                            modifier = Modifier.align(Alignment.Center),
                         )
                     }
 
@@ -173,14 +205,12 @@ fun ChatScreen(
                             contentPadding = PaddingValues(12.dp),
                         ) {
                             items(
-                                items =
-                                    state.messages.asReversed(),
+                                items = state.messages.asReversed(),
                                 key = { it.id },
                             ) { message ->
                                 MessageBubble(
                                     message = message,
-                                    mine =
-                                        message.senderUid == state.myUid,
+                                    mine = message.senderUid == state.myUid,
                                     participantName = state.title,
                                     participantPhotoUrl =
                                         state.participantPhotoUrl,
@@ -223,10 +253,8 @@ fun ChatScreen(
                     } else {
                         Icon(
                             imageVector = Icons.Default.Image,
-                            contentDescription =
-                                "Seleccionar imagen",
-                            tint =
-                                MaterialTheme.colorScheme.primary,
+                            contentDescription = "Seleccionar imagen",
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
@@ -234,8 +262,7 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = draft,
                     onValueChange = {
-                        draft =
-                            it.take(ChatMessage.MAX_LENGTH)
+                        draft = it.take(ChatMessage.MAX_LENGTH)
                     },
                     placeholder = {
                         Text("Escribe un mensaje")
@@ -252,13 +279,127 @@ fun ChatScreen(
                     enabled = draft.isNotBlank(),
                 ) {
                     Icon(
-                        imageVector =
-                            Icons.AutoMirrored.Filled.Send,
+                        imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Enviar",
                     )
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ParticipantProfileScreen(
+    state: ChatUiState,
+    onNavigateBack: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("Información del contacto")
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector =
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver al chat",
+                        )
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(modifier = Modifier.height(28.dp))
+
+            ProfilePhoto(
+                photoUrl = state.participantPhotoUrl,
+                name = state.title,
+                size = 132,
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = state.title.ifBlank { "Miembro de la finca" },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = state.participantRole.ifBlank {
+                    "Miembro de la finca"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 1.dp,
+            ) {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = 20.dp,
+                        vertical = 18.dp,
+                    ),
+                ) {
+                    ProfileDetail(
+                        label = "Correo electrónico",
+                        value = state.participantEmail.ifBlank {
+                            "Correo no disponible"
+                        },
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+
+                    ProfileDetail(
+                        label = "Rol en la finca",
+                        value = state.participantRole.ifBlank {
+                            "Miembro de la finca"
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileDetail(
+    label: String,
+    value: String,
+) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+        )
     }
 }
 
@@ -276,8 +417,7 @@ private fun MessageBubble(
             MessageSurface(
                 message = message,
                 mine = true,
-                modifier =
-                    Modifier.align(Alignment.CenterEnd),
+                modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
     } else {
@@ -338,19 +478,15 @@ private fun MessageSurface(
             if (message.hasText) {
                 Text(
                     text = message.text,
-                    style =
-                        MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(
-                        horizontal = 6.dp,
-                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = 6.dp),
                 )
             }
 
             Text(
                 text = formatChatTime(message.createdAt),
                 style = MaterialTheme.typography.labelSmall,
-                color =
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.End)
                     .padding(
@@ -392,19 +528,16 @@ private fun ChatImage(
                 contentAlignment = Alignment.Center,
             ) {
                 Column(
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
-                        imageVector =
-                            Icons.Default.BrokenImage,
+                        imageVector = Icons.Default.BrokenImage,
                         contentDescription = null,
                         modifier = Modifier.size(36.dp),
                     )
                     Text(
                         text = "No se pudo cargar",
-                        style =
-                            MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
@@ -421,8 +554,7 @@ private fun ProfilePhoto(
     Surface(
         modifier = Modifier.size(size.dp),
         shape = CircleShape,
-        color =
-            MaterialTheme.colorScheme.secondaryContainer,
+        color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         if (photoUrl.isBlank()) {
             Box(
@@ -432,10 +564,8 @@ private fun ProfilePhoto(
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
-                    tint =
-                        MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier =
-                        Modifier.size((size * 0.58f).dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size((size * 0.58f).dp),
                 )
             }
         } else {
@@ -452,9 +582,7 @@ private fun ProfilePhoto(
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(
-                                (size * 0.45f).dp,
-                            ),
+                            modifier = Modifier.size((size * 0.45f).dp),
                             strokeWidth = 2.dp,
                         )
                     }
@@ -465,14 +593,11 @@ private fun ProfilePhoto(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector =
-                                Icons.Default.Person,
+                            imageVector = Icons.Default.Person,
                             contentDescription = null,
                             tint =
                                 MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(
-                                (size * 0.58f).dp,
-                            ),
+                            modifier = Modifier.size((size * 0.58f).dp),
                         )
                     }
                 },
@@ -494,9 +619,9 @@ internal fun formatChatTime(
 
     val sameDay =
         today.get(Calendar.YEAR) ==
-                messageDate.get(Calendar.YEAR) &&
-                today.get(Calendar.DAY_OF_YEAR) ==
-                messageDate.get(Calendar.DAY_OF_YEAR)
+            messageDate.get(Calendar.YEAR) &&
+            today.get(Calendar.DAY_OF_YEAR) ==
+            messageDate.get(Calendar.DAY_OF_YEAR)
 
     val pattern = if (sameDay) {
         "HH:mm"

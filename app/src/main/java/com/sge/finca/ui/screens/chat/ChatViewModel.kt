@@ -63,6 +63,8 @@ class ChatViewModel @Inject constructor(
                                     ?: worker?.email
                                         ?.takeIf { it.isNotBlank() }
                                     ?: "Trabajador",
+                                email = worker?.email.orEmpty(),
+                                role = "Trabajador de la finca",
                                 photoUrl = worker?.photoUrl.orEmpty(),
                             )
                         }
@@ -76,6 +78,8 @@ class ChatViewModel @Inject constructor(
                                     ?: owner?.email
                                         ?.takeIf { it.isNotBlank() }
                                     ?: "Propietario",
+                                email = owner?.email.orEmpty(),
+                                role = "Propietario de la finca",
                                 photoUrl = owner?.photoUrl.orEmpty(),
                             )
                         }
@@ -93,6 +97,8 @@ class ChatViewModel @Inject constructor(
                 ChatUiState(
                     isLoading = false,
                     title = otherPerson.name,
+                    participantEmail = otherPerson.email,
+                    participantRole = otherPerson.role,
                     participantPhotoUrl = otherPerson.photoUrl,
                     messages = messages,
                     myUid = session.uid,
@@ -102,12 +108,17 @@ class ChatViewModel @Inject constructor(
             }
         }
         .catch { caughtError ->
-            Log.e("SgeChat", "No se pudo cargar la conversación", caughtError)
+            Log.e(
+                "SgeChat",
+                "No se pudo cargar la conversación",
+                caughtError,
+            )
             emit(
                 ChatUiState(
                     isLoading = false,
                     errorMessage =
-                        "No se pudo cargar la conversación. Revisa tu conexión e intenta de nuevo",
+                        "No se pudo cargar la conversación. " +
+                                "Revisa tu conexión e intenta de nuevo",
                 ),
             )
         }
@@ -131,7 +142,8 @@ class ChatViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error.value = e.message ?: "No se pudo enviar el mensaje"
+                error.value =
+                    e.message ?: "No se pudo enviar el mensaje"
             }
         }
     }
@@ -157,7 +169,8 @@ class ChatViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error.value = e.message ?: "No se pudo enviar la imagen"
+                error.value =
+                    e.message ?: "No se pudo enviar la imagen"
             } finally {
                 sendingImage.value = false
             }
@@ -170,6 +183,8 @@ class ChatViewModel @Inject constructor(
 
     private data class ChatParticipant(
         val name: String,
+        val email: String,
+        val role: String,
         val photoUrl: String,
     )
 }
