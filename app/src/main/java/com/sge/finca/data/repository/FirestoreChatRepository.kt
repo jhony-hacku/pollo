@@ -2,6 +2,7 @@ package com.sge.finca.data.repository
 
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.sge.finca.data.remote.FirestorePaths
 import com.sge.finca.data.remote.toChatMessage
@@ -16,6 +17,8 @@ import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * El chat vive solo en Firestore, sin Room: los listeners responden en tiempo real y la caché
@@ -31,6 +34,7 @@ class FirestoreChatRepository @Inject constructor(
         val registration = firestore.collection(FirestorePaths.farmCollection(farmId, FirestorePaths.CHATS))
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    Log.e(TAG, "No se pudo escuchar las conversaciones de $farmId", error)
                     close(error)
                     return@addSnapshotListener
                 }
@@ -45,6 +49,7 @@ class FirestoreChatRepository @Inject constructor(
             .limitToLast(MESSAGES_LIMIT)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    Log.e(TAG, "No se pudo escuchar el chat $farmId/$workerUid", error)
                     close(error)
                     return@addSnapshotListener
                 }
@@ -69,9 +74,9 @@ class FirestoreChatRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val chat = firestore.document(FirestorePaths.chat(farmId, workerUid))
         val message = chat.collection(FirestorePaths.MESSAGES).document()
-        // Mensaje y resumen de la conversación juntos. Sin esperar al servidor: sin señal quedan
-        // en la cola de Firestore y el listener ya muestra el mensaje.
-        firestore.batch()
+        // Mensaje y resumen de la conversación juntos. Sin señal quedan en la cola de Firestore y
+        // el listener ya muestra el mensaje.
+        val commit = firestore.batch()
             .set(message, mapOf("senderUid" to uid, "text" to clean, "createdAt" to now))
             .set(
                 chat,
@@ -82,11 +87,23 @@ class FirestoreChatRepository @Inject constructor(
                 ),
             )
             .commit()
-            .addOnFailureListener { Log.e("SgeChat", "No se pudo enviar el mensaje", it) }
+        // Con señal, unos segundos bastan para saber si el servidor lo rechazó (p. ej. reglas de
+        // chat sin publicar) y mostrarlo; sin señal no se espera: queda en la cola.
+        try {
+            withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { commit.await() }
+        } catch (e: FirebaseFirestoreException) {
+            Log.e(TAG, "Firestore rechazó el mensaje en $farmId/$workerUid", e)
+            if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                throw SecurityException("No se pudo enviar: no tienes acceso a este chat")
+            }
+            throw IllegalStateException("No se pudo enviar el mensaje. Intenta de nuevo")
+        }
     }
 
     private companion object {
         const val MESSAGES_LIMIT = 200L
         const val PREVIEW_LENGTH = 200
+        const val CONFIRM_TIMEOUT_MS = 5_000L
+        const val TAG = "SgeChat"
     }
 }
