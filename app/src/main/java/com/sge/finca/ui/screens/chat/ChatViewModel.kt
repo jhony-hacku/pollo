@@ -1,5 +1,6 @@
 package com.sge.finca.ui.screens.chat
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -85,11 +86,12 @@ class ChatViewModel @Inject constructor(
                 )
             }
         }
-        .catch {
+        .catch { error ->
+            Log.e("SgeChat", "No se pudo cargar la conversación", error)
             emit(
                 ChatUiState(
                     isLoading = false,
-                    errorMessage = "No se pudo cargar la conversación",
+                    errorMessage = "No se pudo cargar la conversación. Revisa tu conexión e intenta de nuevo",
                 ),
             )
         }
